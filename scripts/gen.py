@@ -8,6 +8,7 @@ Usage:
 import argparse
 import json
 import random
+import shutil
 import sys
 import time
 import urllib.parse
@@ -17,7 +18,9 @@ from datetime import datetime
 from pathlib import Path
 
 SERVER = "http://127.0.0.1:8188"
-OUT_DIR = Path(__file__).resolve().parent.parent / "outputs"
+ROOT = Path(__file__).resolve().parent.parent
+OUT_DIR = ROOT / "outputs"
+COMFY_INPUT = ROOT / "ComfyUI" / "input"
 DEFAULT_CKPT = "juggernautXL_v9.safetensors"
 FAST_LORA = "dmd2_sdxl_4step_lora_fp16.safetensors"
 DEFAULT_NEG = "lowres, blurry, jpeg artifacts, watermark, text, signature, deformed, bad anatomy, extra fingers"
@@ -50,6 +53,24 @@ def build_graph(a, seed):
         g["sample"]["inputs"]["model"] = ["lora", 0]
         g["pos"]["inputs"]["clip"] = ["lora", 1]
         g["neg"]["inputs"]["clip"] = ["lora", 1]
+    if a.ref:
+        # IPAdapter: steer the look toward a reference image; the prompt handles pose/scene
+        # multiple refs get batched together and their embeddings concatenated
+        ref_out = None
+        for i, name in enumerate(a.ref_names):
+            g[f"ref{i}"] = {"class_type": "LoadImage", "inputs": {"image": name}}
+            if ref_out is None:
+                ref_out = [f"ref{i}", 0]
+            else:
+                g[f"ref_batch{i}"] = {"class_type": "ImageBatch", "inputs": {"image1": ref_out, "image2": [f"ref{i}", 0]}}
+                ref_out = [f"ref_batch{i}", 0]
+        g["ipa_loader"] = {"class_type": "IPAdapterUnifiedLoader", "inputs": {
+            "model": g["sample"]["inputs"]["model"], "preset": "PLUS (high strength)"}}
+        g["ipa"] = {"class_type": "IPAdapterAdvanced", "inputs": {
+            "model": ["ipa_loader", 0], "ipadapter": ["ipa_loader", 1], "image": ref_out,
+            "weight": a.ref_weight, "weight_type": "linear", "combine_embeds": "concat",
+            "start_at": 0.0, "end_at": a.ref_end, "embeds_scaling": "V only"}}
+        g["sample"]["inputs"]["model"] = ["ipa", 0]
     return g
 
 
@@ -81,7 +102,16 @@ def main():
     p.add_argument("--ckpt", default=DEFAULT_CKPT)
     p.add_argument("--fast", action="store_true", help="DMD2 LoRA: ~6 steps, cfg 1")
     p.add_argument("--name", default="", help="label added to output filenames")
+    p.add_argument("--ref", nargs="+", help="reference image(s) for IPAdapter (character/style consistency)")
+    p.add_argument("--ref-weight", type=float, default=0.7, help="IPAdapter strength; higher = closer to ref")
+    p.add_argument("--ref-end", type=float, default=1.0, help="stop applying the ref at this fraction of steps")
     a = p.parse_args()
+
+    a.ref_names = []
+    for r in a.ref or []:
+        ref = Path(r).resolve()
+        shutil.copy(ref, COMFY_INPUT / ref.name)
+        a.ref_names.append(ref.name)
 
     # DMD2 wants lcm/sgm_uniform at cfg 1; Juggernaut likes dpmpp_2m/karras around cfg 4.5
     defaults = dict(steps=6, cfg=1.0, sampler="lcm", scheduler="sgm_uniform") if a.fast else \
@@ -103,6 +133,8 @@ def main():
             path.write_bytes(api(f"/view?{q}"))
             meta = {k: getattr(a, k) for k in ("prompt", "negative", "width", "height", "steps", "cfg",
                                                "sampler", "scheduler", "ckpt", "fast")}
+            if a.ref:
+                meta.update(ref=a.ref, ref_weight=a.ref_weight, ref_end=a.ref_end)
             (OUT_DIR / f"{stem}.json").write_text(json.dumps({**meta, "seed": seed}, indent=2))
             print(f"{path}  ({time.time() - t0:.0f}s)")
 

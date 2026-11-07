@@ -1,0 +1,13 @@
+{
+  "prompt": "painterly digital painting of an endless dark void, winding organic bone-white roads that curve from the far distance and sweep into the foreground, arched ribbon bridges looping over each other, porous lattice bone webbing with oval holes, coral-like membranes, pale teal glowing liquid flowing along the curved roads, deep black background, moody rim lighting, fantasy concept art, rich brushstrokes, no characters",
+  "negative": "people, person, creature, character, text, watermark, signature, photo, lowres, blurry, flat, cartoon",
+  "width": 1344,
+  "height": 768,
+  "steps": 6,
+  "cfg": 1.0,
+  "sampler": "lcm",
+  "scheduler": "sgm_uniform",
+  "ckpt": "juggernautXL_v9.safetensors",
+  "fast": true,
+  "seed": 2292325229
+}

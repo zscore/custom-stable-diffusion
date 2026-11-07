@@ -4,3 +4,6 @@ ComfyUI/
 *.log
 .DS_Store
 __pycache__/
+
+# animation frame dumps (rebuilt by the scripts; the mp4s are kept)
+outputs/animations/*_frames/

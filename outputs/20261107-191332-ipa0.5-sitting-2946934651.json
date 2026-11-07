@@ -1,0 +1,19 @@
+{
+  "prompt": "cute cartoon blue homunculus creature, sitting and hugging his knees, nervous, clean lineart, flat colors, white background, full body",
+  "negative": "photo, realistic, human, multiple characters, teeth, lowres, blurry, watermark, text, deformed, extra limbs",
+  "width": 512,
+  "height": 512,
+  "steps": 25,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "ckpt": "dreamshaper_8.safetensors",
+  "fast": false,
+  "ref": [
+    "refs/homunculus-crouch.png",
+    "refs/homunculus-armscrossed.png"
+  ],
+  "ref_weight": 0.5,
+  "ref_end": 1.0,
+  "seed": 2946934651
+}

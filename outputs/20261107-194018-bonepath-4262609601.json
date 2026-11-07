@@ -1,0 +1,13 @@
+{
+  "prompt": "painterly digital painting of an endless dark void, a winding ribbon-like walkway made entirely of smooth pale ivory bone curving from the far distance and sweeping into the foreground, the walkway surface is polished bone with vertebrae-like segments and porous oval holes, arched bone bridges looping over each other, lattice bone webbing, pale teal glowing liquid pooling in the grooves, pitch black empty background, moody rim lighting, fantasy concept art, rich brushstrokes, no characters",
+  "negative": "asphalt, road markings, lane lines, highway, street, pavement, concrete, cars, guardrail, people, person, creature, character, text, watermark, signature, photo, lowres, blurry",
+  "width": 1344,
+  "height": 768,
+  "steps": 6,
+  "cfg": 1.0,
+  "sampler": "lcm",
+  "scheduler": "sgm_uniform",
+  "ckpt": "juggernautXL_v9.safetensors",
+  "fast": true,
+  "seed": 4262609601
+}
