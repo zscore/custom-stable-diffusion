@@ -305,7 +305,7 @@ def place_character(img, sprite, labels, seeds, pose, ph):
             [math.sin(2 * np.pi * 2 * ph + wob[0]), math.cos(2 * np.pi * 3 * ph + wob[1])])
         rot = angle + env * 40 * math.sin(2 * np.pi * ph + wob[2])
         # sprite coords -> screen: anchor sprite bottom-center at the foot, rotate about the piece seed
-        M = cv2.getRotationMatrix2D(tuple(map(float, seeds[i])), -rot, 1.0)
+        M = cv2.getRotationMatrix2D(tuple(map(float, seeds[i])), -rot, pose.get("grow", 1.0))
         M[:, 2] += foot - np.array([spr.shape[1] / 2, spr.shape[0]]) + off
         warped = cv2.warpAffine(piece, M, (W, H), flags=cv2.INTER_LINEAR, borderValue=0)
         a = warped[..., 3:4]
@@ -324,7 +324,7 @@ def place_character(img, sprite, labels, seeds, pose, ph):
 # ---------- deepdream ----------
 
 class Dreamer:
-    def __init__(self, layers, device):
+    def __init__(self, layers, device, guide=None):
         import torch
         import torchvision
         self.torch = torch
@@ -333,11 +333,34 @@ class Dreamer:
         for p in net.parameters():
             p.requires_grad_(False)
         self.acts = {}
+        # "class:N" entries pull toward ImageNet class N (e.g. 107 jellyfish) instead of a layer's
+        # free-for-all, which in 4c-4e is mostly dog breeds
+        # "class:A-B" spreads the weight over a range; a negative weight pushes away (class:151-268:-1 = no dogs)
+        self.classes = {}
+        for k, w in layers.items():
+            if k.startswith("class:"):
+                lo, _, hi = k.split(":")[1].partition("-")
+                ids = range(int(lo), int(hi or lo) + 1)
+                self.classes.update({c: w / len(ids) for c in ids})
+        # "guide:<layer>" entries pull each patch toward its best match in the guide image's features
+        # (Google's guided-DeepDream objective), so the dream grows things that look like the guide
+        self.guided = {k.split(":")[1]: w for k, w in layers.items() if k.startswith("guide:")}
+        free = {k: w for k, w in layers.items() if ":" not in k}
+        layers = {**free, **{k: 0.0 for k in self.guided if k not in free}}
         for name, w in layers.items():
             getattr(net, name).register_forward_hook(lambda m, i, o, name=name: self.acts.__setitem__(name, o))
         self.net, self.layers = net, layers
         self.mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
         self.std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+        self.guide_feats = {}
+        if self.guided:
+            g = (torch.from_numpy(guide).permute(2, 0, 1)[None].float().to(device) - self.mean) / self.std
+            with torch.no_grad():
+                self.acts.clear()
+                self._run_to_last_layer(g)
+                for name in self.guided:
+                    f = self.acts[name][0].flatten(1)  # C x N
+                    self.guide_feats[name] = f / (f.norm(dim=0, keepdim=True) + 1e-6)
 
     def _run_to_last_layer(self, x):
         n = self.net
@@ -345,6 +368,8 @@ class Dreamer:
         order = ["conv1", "maxpool1", "conv2", "conv3", "maxpool2", "inception3a", "inception3b", "maxpool3",
                  "inception4a", "inception4b", "inception4c", "inception4d", "inception4e", "maxpool4",
                  "inception5a", "inception5b"]
+        if self.classes:
+            return n(x)  # full forward (applies _transform_input itself) -> logits
         last = max(order.index(l) for l in self.layers)
         x = n._transform_input(x)  # torchvision's googlenet expects this before conv1
         for name in order[:last + 1]:
@@ -367,8 +392,14 @@ class Dreamer:
                 ox, oy = torch.randint(-jitter, jitter + 1, (2,), generator=g).tolist()
                 x = torch.roll(x, (oy, ox), (2, 3)).requires_grad_(True)
                 self.acts.clear()
-                self._run_to_last_layer(x)
-                loss = sum(w * self.acts[n].pow(2).mean() for n, w in self.layers.items())
+                logits = self._run_to_last_layer(x)
+                loss = sum(w * self.acts[n].pow(2).mean() for n, w in self.layers.items() if w)
+                for n, w in self.guided.items():
+                    x_f = self.acts[n][0].flatten(1)  # C x HW
+                    match = (x_f.T @ self.guide_feats[n]).max(dim=1).values  # best guide patch per position
+                    loss = loss + w * match.mean()
+                if self.classes:
+                    loss = loss + sum(w * logits[0, c] for c, w in self.classes.items())
                 loss.backward()
                 gr = x.grad / (x.grad.abs().mean() + 1e-8)
                 x = torch.roll((x + step * gr).detach(), (-oy, -ox), (2, 3))

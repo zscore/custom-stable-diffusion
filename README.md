@@ -164,6 +164,33 @@ $PY scripts/dreamwalk.py $G --hold 4 --name reel75 \
 - **Stage-by-stage renders** (`--no-character`, `--no-shatter`): [1 backdrop](outputs/animations/stage1-backdrop.mp4), [2 + walk](outputs/animations/stage2-walk.mp4), [3 + discombobulation](outputs/animations/stage3-shatter.mp4), [4 + DeepDream](outputs/animations/stage4-dream.mp4). All four play in sync in [stages-2x2.mp4](outputs/animations/stages-2x2.mp4) ([stills](outputs/animations/wip/17-stage4-dream.png)).
 - **DeepDream result:** the bone ribbons turned into coral snakes, black dogs appear in the bottom-left, and eyes and machinery fill the void. Because frame-to-frame feedback locks hallucinations in place, the snakes ride the ribbons for the whole loop. The homunculus mostly gets dreamed away into a ghost. Next tweak: lower `--feedback`/`--step`, or a higher `--char-protect`.
 
+### Pass 5: the procession (`scripts/procession.py`)
+
+A 14-second clip that loops: an accelerating stream of homunculi comes out of the far end of the arch tunnel and down the middle ribbon. Each one is more discombobulated than the last, and they flicker in and out of existence while afterimage trails and DeepDream ramp up. At the end, everyone explodes past the frame edges and it all drains back to the empty opening frame.
+
+```sh
+G=(outputs/*grumpy-walk-{1,2,4,5,6,3}-*.png); G=(${G/%/:flip})
+$PY scripts/procession.py $G --background outputs/20261107-195231-bonehalls-blue-d0.75-2292325229.png \
+  --path "$(cat outputs/animations/wip/procession-path.txt)" --protect "0,.56 1,.56 1,1 0,1" --water 0.555 \
+  --trip 7.5 --min-trip 4 --loop --dream-full 12.5 --dream-ease 1.4 --name procession-loop-slow
+```
+
+- **Timeline:** 1s of empty scene. Then walkers spawn with gaps shrinking from 1.6s by ×0.85 each time, down to 0.35s (~15 walkers). Discombobulation scales from 0 to 6, and later walkers are faster. Flicker hides walkers in 2-frame blips from 4s, up to ~50% hidden. Trails are a decaying premultiplied buffer of past character layers, tinted cyan.
+- **Loop ending (`--loop`):** at 12.3s everyone still on screen explodes (staggered, pieces growing up to 8× and flung off-frame), while trails and dream drain over the last 0.8s. The vortex and water are periodic in the clip length, so frame 209 → 0 is seamless ([ending](outputs/animations/wip/22-loop-ending-raw.png)).
+- **No more dogs.** The 4c/4d layers (`procession.mp4`) literally turned the finale into huskies. The [style sweep](outputs/animations/wip/24-dream-options.png) gave `dreamwalk.Dreamer` three new kinds of objective:
+  - `inception4a` ("architecture"): eyes and filigree, no animals.
+  - `guide:<layer>`: Google's guided-DeepDream objective. Each patch is pulled toward its best match among a guide image's features ([guided sweep](outputs/animations/wip/25-guided-dream.png)).
+  - `class:A-B:w`: push toward or (negative w) away from ImageNet classes. `class:151-268:-1.2` is "no dog breeds".
+- **Gremlin version:** guided at 4a+4b+4c by a [sheet of reference homunculi](outputs/animations/wip/guide-refsheet.png). Alone, that hallucinated dogs and lemurs ([sweep](outputs/animations/wip/27-gremlin-guided.png)); with a strong anti-dog term the creatures vanished ([sweep](outputs/animations/wip/28-gremlin-nodogs.png)). -1.2 is the sweet spot ([tune](outputs/animations/wip/29-gremlin-antidog-tune.png)): big-eyed furry gremlin-lemurs. It's ~5.6s/frame because the class term needs the full network.
+
+| Version | Dream | Ramp |
+|---|---|---|
+| [procession-loop-slow.mp4](outputs/animations/procession-loop-slow.mp4) ⭐ | 4a + guide 4b (eyes, filigree) | 4s → full at 12.5s, eased late ([vs fast](outputs/animations/wip/32-fast-vs-slow-ramp.png)) |
+| [procession-loop.mp4](outputs/animations/procession-loop.mp4) | same | 4s → full at 10s ([stills](outputs/animations/wip/30-loop-architecture.png)) |
+| [procession-loop-gremlin.mp4](outputs/animations/procession-loop-gremlin.mp4) | gremlin-guided, anti-dog | 4s → full at 10s ([stills](outputs/animations/wip/31-loop-gremlin.png)) |
+| [procession.mp4](outputs/animations/procession.mp4) | 4c/4d (dogs!), not a loop | 7s → 14s ([stills](outputs/animations/wip/23-procession-dream.png)) |
+| [procession-loop-raw.mp4](outputs/animations/procession-loop-raw.mp4) | none | n/a |
+
 Add `--no-dream` for a ~25s raw preview: [0.6 raw](outputs/animations/reel-raw.mp4) ([frames](outputs/animations/wip/12-reel-raw.png)), [0.75 raw](outputs/animations/reel75-raw.mp4) ([frames](outputs/animations/wip/13-reel75-raw.png)). The DeepDreamed versions take ~15 min each.
 
 ## Next up
