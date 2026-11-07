@@ -31,6 +31,9 @@ $PY scripts/gen.py "cute cartoon blue homunculus creature, side view walking, ve
     --ckpt dreamshaper_8.safetensors --width 512 --height 512 --steps 25 --cfg 7 \
     --ref refs/homunculus-crouch.png refs/homunculus-armscrossed.png --ref-weight 0.7
 
+# img2img: restyle an existing image; --denoise 0 = unchanged, 1 = ignore it
+$PY scripts/gen.py "...everything in cool blue tones..." --fast --init outputs/<image>.png --denoise 0.6
+
 # tile a bunch of images into one labeled sheet
 $PY scripts/contact.py outputs/sheets/whatever.png outputs/*-homunc3-*.png
 
@@ -48,7 +51,7 @@ Every image lands in `outputs/` next to a `.json` with its full recipe (prompt, 
 |---|---|
 | `setup.sh` | Rebuilds the whole ComfyUI install from scratch, pinned to exact commits |
 | `start.sh` | Launches the ComfyUI server |
-| `scripts/gen.py` | Text-to-image: builds a ComfyUI graph, queues it, saves PNG + JSON. Stdlib only |
+| `scripts/gen.py` | Text-to-image and img2img (`--init`): builds a ComfyUI graph, queues it, saves PNG + JSON. Stdlib only |
 | `scripts/contact.py` | Makes contact sheets for reviewing batches |
 | `scripts/patterns.py` | Blue procedural backgrounds; animated vortex-lattice loop; fills a background's void with it |
 | `scripts/dreamwalk.py` | Cuts the homunculus out of renders, walks him through a scene, shatters him, DeepDreams every frame |
@@ -126,10 +129,35 @@ The procedural roads were too flat and garland-like, so the scene is being rewor
   $PY scripts/patterns.py fill outputs/20261107-193514-bonehalls-2292325229.png --protect "0,1 0,.74 .69,.515 .80,.515 .79,1"
   ```
 
-### Still to do
+- **All-bone retry** (`*-bonepath-*`, [batch](outputs/animations/wip/9-bonepath-batch.png)): #3, a looping lattice ribbon over teal, was the best of the batch ([fill](outputs/animations/wip/10-bonepath3-fill.png)). But the original arch road was still the favorite.
+- **img2img on the favorite:** added `--init/--denoise` to `gen.py` and restyled the arch road "bony and blue" at 0.45 / 0.6 / 0.75 ([compare](outputs/animations/wip/11-bonehalls-blue-img2img.png)). 0.45 kept a lane line; 0.6 turned the road into wavy bone ribbons running into the arch tunnel; 0.75 put bone strips on a reflecting pool. DMD2 `--fast` smooths away fine lattice detail. A full 30-step pass or road-only inpainting would keep more.
 
-- Pick a bone-walkway background and trace the walking path on it, so he comes from the distance into the foreground and scales up as he approaches
-- Composite the shattering walk cycle onto it, then run DeepDream over the whole thing
+### Pass 3: the reel
+
+`dreamwalk.py --background` swaps the procedural scene for a generated image:
+
+- The void gets the animated vortex lattice (`patterns.VortexLoop` + `void_mask`, with the floor protected).
+- `--path "x,y,width …"` is a hand-traced walk from the tunnel mouth to the foreground. Points were found by scanning rows for bright ribbon spans. The walkway width at each point sets his scale, and he moves at constant *ground* speed (screen distance ÷ scale), so he speeds up on screen as he approaches, like real perspective.
+- Sprites get `:flip` so he faces the way he's walking.
+- To make the loop seamless, he reassembles out of flying pieces at the tunnel mouth, stomps toward the camera with a mild wobble, then blows apart and fades in the foreground.
+
+Two versions to compare:
+
+```sh
+G=(outputs/*grumpy-walk-{1,2,4,5,6,3}-*.png); G=(${G/%/:flip})   # zsh
+
+# denoise 0.6 background: wide bone ribbon to the bottom-left corner
+$PY scripts/dreamwalk.py $G --hold 4 --name reel \
+  --background outputs/20261107-195110-bonehalls-blue-d0.6-2292325229.png --protect "0,.55 1,.55 1,1 0,1" \
+  --path "0.618,0.558,0.057 0.555,0.585,0.059 0.501,0.613,0.064 0.451,0.640,0.073 0.400,0.667,0.079 0.353,0.695,0.086 0.303,0.722,0.094 0.264,0.749,0.096 0.219,0.777,0.102 0.164,0.804,0.120 0.115,0.831,0.130"
+
+# denoise 0.75 background: middle wavy ribbon over the reflecting pool
+$PY scripts/dreamwalk.py $G --hold 4 --name reel75 \
+  --background outputs/20261107-195231-bonehalls-blue-d0.75-2292325229.png --protect "0,.56 1,.56 1,1 0,1" \
+  --path "0.658,0.583,0.039 0.625,0.611,0.043 0.592,0.639,0.047 0.560,0.667,0.049 0.527,0.694,0.057 0.495,0.722,0.062 0.458,0.750,0.068 0.423,0.778,0.073 0.391,0.829,0.078 0.354,0.856,0.083 0.318,0.884,0.086 0.289,0.912,0.091 0.258,0.940,0.096 0.234,0.968,0.102"
+```
+
+Add `--no-dream` for a ~25s raw preview: [0.6 raw](outputs/animations/reel-raw.mp4) ([frames](outputs/animations/wip/12-reel-raw.png)), [0.75 raw](outputs/animations/reel75-raw.mp4) ([frames](outputs/animations/wip/13-reel75-raw.png)). The DeepDreamed versions take ~15 min each.
 
 ## Next up
 

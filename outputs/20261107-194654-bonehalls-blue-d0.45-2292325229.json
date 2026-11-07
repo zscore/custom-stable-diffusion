@@ -1,0 +1,15 @@
+{
+  "prompt": "painterly digital painting, a winding walkway made entirely of smooth pale bone curving from the far distance into the foreground, the walkway surface is polished ivory bone with vertebrae-like segments and porous oval holes, giant looping bone arches with lattice webbing, everything in cool blue tones, blue-white bone, cobalt, cyan and navy palette, dark blue void, moody blue rim lighting, fantasy concept art",
+  "negative": "asphalt, road markings, lane lines, highway, street, pavement, concrete, green, teal, warm colors, people, creature, text, watermark, lowres, blurry",
+  "width": 1024,
+  "height": 1024,
+  "steps": 6,
+  "cfg": 1.0,
+  "sampler": "lcm",
+  "scheduler": "sgm_uniform",
+  "ckpt": "juggernautXL_v9.safetensors",
+  "fast": true,
+  "init": "outputs/20261107-193514-bonehalls-2292325229.png",
+  "denoise": 0.45,
+  "seed": 2292325229
+}

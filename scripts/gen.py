@@ -42,7 +42,7 @@ def build_graph(a, seed):
         "sample": {"class_type": "KSampler", "inputs": {
             "model": ["ckpt", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["latent", 0],
             "seed": seed, "steps": a.steps, "cfg": a.cfg, "sampler_name": a.sampler,
-            "scheduler": a.scheduler, "denoise": 1.0}},
+            "scheduler": a.scheduler, "denoise": a.denoise}},
         "decode": {"class_type": "VAEDecode", "inputs": {"samples": ["sample", 0], "vae": ["ckpt", 2]}},
         "save": {"class_type": "SaveImage", "inputs": {"images": ["decode", 0], "filename_prefix": "gen"}},
     }
@@ -53,6 +53,10 @@ def build_graph(a, seed):
         g["sample"]["inputs"]["model"] = ["lora", 0]
         g["pos"]["inputs"]["clip"] = ["lora", 1]
         g["neg"]["inputs"]["clip"] = ["lora", 1]
+    if a.init:
+        # img2img: start from an existing image instead of noise; denoise sets how much gets repainted
+        g["init"] = {"class_type": "LoadImage", "inputs": {"image": a.init_name}}
+        g["latent"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["init", 0], "vae": ["ckpt", 2]}}
     if a.ref:
         # IPAdapter: steer the look toward a reference image; the prompt handles pose/scene
         # multiple refs get batched together and their embeddings concatenated
@@ -105,7 +109,17 @@ def main():
     p.add_argument("--ref", nargs="+", help="reference image(s) for IPAdapter (character/style consistency)")
     p.add_argument("--ref-weight", type=float, default=0.7, help="IPAdapter strength; higher = closer to ref")
     p.add_argument("--ref-end", type=float, default=1.0, help="stop applying the ref at this fraction of steps")
+    p.add_argument("--init", help="img2img: start from this image (output size follows it)")
+    p.add_argument("--denoise", type=float, help="img2img strength: 0 = unchanged, 1 = ignore the init (default 0.6)")
     a = p.parse_args()
+
+    if a.init:
+        init = Path(a.init).resolve()
+        shutil.copy(init, COMFY_INPUT / init.name)
+        a.init_name = init.name
+        a.denoise = 0.6 if a.denoise is None else a.denoise
+    else:
+        a.denoise = 1.0
 
     a.ref_names = []
     for r in a.ref or []:
@@ -135,6 +149,8 @@ def main():
                                                "sampler", "scheduler", "ckpt", "fast")}
             if a.ref:
                 meta.update(ref=a.ref, ref_weight=a.ref_weight, ref_end=a.ref_end)
+            if a.init:
+                meta.update(init=a.init, denoise=a.denoise)
             (OUT_DIR / f"{stem}.json").write_text(json.dumps({**meta, "seed": seed}, indent=2))
             print(f"{path}  ({time.time() - t0:.0f}s)")
 

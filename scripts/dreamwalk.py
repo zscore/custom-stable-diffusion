@@ -151,28 +151,69 @@ class Scene:
         under = cv2.GaussianBlur(under, (0, 0), 1.2)
         img = img * (1 - 0.8 * under[..., None]) + 0.8 * under[..., None] * np.array([.12, .28, .7])
         draw_road(img, np.stack([xs, ys], 1), 22, (.25, .55, 1.0), (.05, .12, .45), glow=0.7)
-        return img, s
+        return img
+
+    def pose(self, f, n_steps, x_frac=0.36, height=0.36):
+        ph = f / self.T
+        s = ph * self.D
+        sh = self.H * height
+        cx = self.W * x_frac
+        y_road = self.main_road_y(np.array([cx - 3, cx, cx + 3]), s)
+        bob = abs(math.sin(np.pi * n_steps * ph)) * sh * 0.05
+        return dict(foot=np.array([cx, y_road[1] - bob + sh * 0.02]), ground=(cx, y_road[1]), sh=sh,
+                    angle=math.degrees(math.atan2(y_road[2] - y_road[0], 6)),
+                    env=(0.5 - 0.5 * math.cos(2 * np.pi * 3 * ph)) ** 2, fade=1.0)
+
+
+class BackdropScene:
+    """A generated background with the vortex lattice animated into its void, and a hand-traced
+    path the character walks from the distance into the foreground."""
+
+    def __init__(self, W, H, frames, background, path, protect=(), size=1.5, strength=0.8, explode=0.15):
+        import patterns
+        self.W, self.H, self.T = W, H, frames
+        bg = cv2.imread(str(background))[..., ::-1].astype(np.float32) / 255
+        self.bg = cv2.resize(bg, (W, H), interpolation=cv2.INTER_AREA)
+        self.mask = patterns.void_mask(self.bg, protect)
+        self.vortex = patterns.VortexLoop(W, H)
+        self.strength = strength
+        # path points carry (x, y, walkway width) in 0..1 coords; width sets the character's scale
+        pts = np.array(path, np.float32) * [W, H, W]
+        # constant speed over the ground: screen distance divided by local scale
+        seg = np.hypot(*np.diff(pts[:, :2], axis=0).T) / ((pts[1:, 2] + pts[:-1, 2]) / 2)
+        self.ground = np.r_[0, np.cumsum(seg)] / seg.sum()
+        self.pts, self.size, self.explode = pts, size, explode
+
+    def render(self, f):
+        v = self.vortex.frame(f / self.T)
+        return self.bg * (1 - self.mask) + np.maximum(self.bg, v * self.strength) * self.mask
+
+    def pose(self, f, n_steps):
+        ph = f / self.T
+        u = ph  # one trip down the path per loop
+        x, y, w = (np.interp(u, self.ground, self.pts[:, i]) for i in range(3))
+        sh = w * self.size
+        bob = abs(math.sin(np.pi * n_steps * ph)) * sh * 0.05
+        # at the end of the path he blows apart and fades, then reassembles at the far end
+        tail = max(0.0, (ph - (1 - self.explode)) / self.explode)
+        head = max(0.0, 1 - ph / (self.explode * 0.6))
+        burst = max(tail, head) ** 1.5
+        wobble = 0.35 * (0.5 - 0.5 * math.cos(2 * np.pi * 3 * ph)) ** 2
+        return dict(foot=np.array([x, y - bob]), ground=(x, y), sh=sh, angle=0.0,
+                    env=wobble + 2.5 * burst, fade=1 - burst)
 
 
 # ---------- character placement ----------
 
-def place_character(img, sprite, labels, seeds, scene, s, f, n_steps, x_frac=0.36, height=0.36):
-    W, H, T = scene.W, scene.H, scene.T
-    ph = f / T
-    sh = int(H * height)
+def place_character(img, sprite, labels, seeds, pose, ph):
+    H, W = img.shape[:2]
+    sh, env, angle, foot = int(pose["sh"]), pose["env"], pose["angle"], pose["foot"]
     k = sh / sprite.shape[0]
-    spr = cv2.resize(sprite, (max(1, int(sprite.shape[1] * k)), sh), interpolation=cv2.INTER_AREA)
+    spr = cv2.resize(sprite, (max(1, int(sprite.shape[1] * k)), sh), interpolation=cv2.INTER_AREA) * pose["fade"]
     lab = cv2.resize(labels.astype(np.float32), (spr.shape[1], spr.shape[0]), interpolation=cv2.INTER_NEAREST).astype(int)
     seeds = seeds * k
 
-    cx = W * x_frac
-    y_road = scene.main_road_y(np.array([cx - 3, cx, cx + 3]), s)
-    angle = math.degrees(math.atan2(y_road[2] - y_road[0], 6))
-    bob = abs(math.sin(np.pi * n_steps * ph)) * sh * 0.05
-    foot = np.array([cx, y_road[1] - bob + sh * 0.02])
-
-    # discombobulate: pieces fly out along a pulsing envelope, each with its own wobble
-    env = (0.5 - 0.5 * math.cos(2 * np.pi * 3 * ph)) ** 2
+    # discombobulate: pieces fly out along the envelope, each with its own wobble
     center = np.array([spr.shape[1] / 2, spr.shape[0] / 2])
     rng = np.random.default_rng(7)
     out = np.zeros((H, W, 4), np.float32)
@@ -193,10 +234,12 @@ def place_character(img, sprite, labels, seeds, scene, s, f, n_steps, x_frac=0.3
         a = warped[..., 3:4]
         out[..., :3] = warped[..., :3] + out[..., :3] * (1 - a)
         out[..., 3:4] = a + out[..., 3:4] * (1 - a)
-    # soft shadow on the road
+    # soft shadow on the ground
     shadow = np.zeros((H, W), np.float32)
-    cv2.ellipse(shadow, (int(cx), int(y_road[1])), (int(sh * 0.28 * (1 - 0.5 * env)), 7), angle, 0, 360, 0.6, -1, cv2.LINE_AA)
-    img *= 1 - cv2.GaussianBlur(shadow, (0, 0), 4)[..., None]
+    gx, gy = pose["ground"]
+    cv2.ellipse(shadow, (int(gx), int(gy)), (max(1, int(sh * 0.28 * (1 - 0.5 * min(env, 1)))), max(1, int(sh * 0.04))),
+                angle, 0, 360, 0.6 * pose["fade"], -1, cv2.LINE_AA)
+    img = img * (1 - cv2.GaussianBlur(shadow, (0, 0), 4)[..., None])
     a = out[..., 3:4]
     return out[..., :3] + img * (1 - a), a[..., 0]
 
@@ -268,6 +311,10 @@ def flow_warp(prev_dream, prev_raw, cur_raw):
     return cv2.remap(prev_dream, gx + flow[..., 0], gy + flow[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
 
 
+def patterns_poly(text):
+    return [tuple(map(float, pt.split(","))) for pt in text.split()]
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("sprites", nargs="+", help="character pngs on white; append :flip to mirror")
@@ -278,6 +325,10 @@ def main():
     p.add_argument("--fps", type=int, default=15)
     p.add_argument("--hold", type=int, default=6, help="frames per pose before switching")
     p.add_argument("--pieces", type=int, default=9, help="how many chunks the body breaks into")
+    p.add_argument("--background", help="image to walk through instead of the procedural scene")
+    p.add_argument("--path", help='walk path for --background: "x,y,width ..." in 0..1 coords, far to near')
+    p.add_argument("--protect", action="append", default=[], help="polygon kept free of the void pattern (patterns.py fill)")
+    p.add_argument("--size", type=float, default=1.5, help="character height relative to the walkway width")
     p.add_argument("--no-dream", action="store_true")
     p.add_argument("--layers", default="inception4c:1.0,inception4d:1.0", help="4c-4e is where the dogs live")
     p.add_argument("--octaves", type=int, default=5)
@@ -297,14 +348,18 @@ def main():
         rgba = cutout(ROOT / path if not Path(path).is_absolute() else path, flip=(mod == "flip"))
         sprites.append((rgba, *shatter(rgba, a.pieces, rng)))
 
-    scene = Scene(a.width, a.height, a.frames)
+    if a.background:
+        protect = [patterns_poly(t) for t in a.protect]
+        scene = BackdropScene(a.width, a.height, a.frames, a.background, patterns_poly(a.path), protect, size=a.size)
+    else:
+        scene = Scene(a.width, a.height, a.frames)
     n_steps = a.frames // a.hold  # one bob per pose change
 
     def raw_frame(f):
         f %= a.frames
-        img, s = scene.render(f)
+        img = scene.render(f)
         spr, labels, seeds = sprites[(f // a.hold) % len(sprites)]
-        rgb, alpha = place_character(img, spr, labels, seeds, scene, s, f, n_steps)
+        rgb, alpha = place_character(img, spr, labels, seeds, scene.pose(f, n_steps), f / a.frames)
         return rgb.astype(np.float32), alpha
 
     frames_dir = OUT_DIR / f"{a.name}_frames"
