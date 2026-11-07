@@ -188,6 +188,7 @@ $PY scripts/procession.py $G --background outputs/20261107-195231-bonehalls-blue
 | [procession-loop-slow.mp4](outputs/animations/procession-loop-slow.mp4) ⭐ | 4a + guide 4b (eyes, filigree) | 4s → full at 12.5s, eased late ([vs fast](outputs/animations/wip/32-fast-vs-slow-ramp.png)) |
 | [procession-loop.mp4](outputs/animations/procession-loop.mp4) | same | 4s → full at 10s ([stills](outputs/animations/wip/30-loop-architecture.png)) |
 | [procession-loop-gremlin.mp4](outputs/animations/procession-loop-gremlin.mp4) | gremlin-guided, anti-dog | 4s → full at 10s ([stills](outputs/animations/wip/31-loop-gremlin.png)) |
+| [procession-loop-gremlin-square-1080.mp4](outputs/animations/procession-loop-gremlin-square-1080.mp4) | gremlin, square | 432×432 crop at x=118 (keeps 96% of the character motion, scored from frame differences of the raw render minus the median column), lanczos-upscaled to 1080²; native 432² is `-square.mp4` |
 | [procession.mp4](outputs/animations/procession.mp4) | 4c/4d (dogs!), not a loop | 7s → 14s ([stills](outputs/animations/wip/23-procession-dream.png)) |
 | [procession-loop-raw.mp4](outputs/animations/procession-loop-raw.mp4) | none | n/a |
 
