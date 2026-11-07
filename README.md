@@ -157,6 +157,13 @@ $PY scripts/dreamwalk.py $G --hold 4 --name reel75 \
   --path "0.658,0.583,0.039 0.625,0.611,0.043 0.592,0.639,0.047 0.560,0.667,0.049 0.527,0.694,0.057 0.495,0.722,0.062 0.458,0.750,0.068 0.423,0.778,0.073 0.391,0.829,0.078 0.354,0.856,0.083 0.318,0.884,0.086 0.289,0.912,0.091 0.258,0.940,0.096 0.234,0.968,0.102"
 ```
 
+### Pass 4: water, stages, dream (0.75 background)
+
+- **Water** (`--water 0.555` = horizon height): below the horizon, anything that isn't bone is water. Bone means bright pixels, plus dim colorless pixels connected to bright bone within ~25px, which catches shadowed bone. Small enclosed pockets (perforation holes) count as bone, and coral speckle is closed into solid clumps. The first, brightness-only mask rippled over shadowed ribbon ([before/after](outputs/animations/wip/16-water-mask-fix.png)).
+- The water reflects the swirling void (mirrored about the horizon, fading with distance) and gets looping perspective waves, ring ripples that are born and die once per loop, and crest glints. Far-off waves are calmed and the depth is capped; otherwise they alias into stripes at the horizon.
+- **Stage-by-stage renders** (`--no-character`, `--no-shatter`): [1 backdrop](outputs/animations/stage1-backdrop.mp4), [2 + walk](outputs/animations/stage2-walk.mp4), [3 + discombobulation](outputs/animations/stage3-shatter.mp4), [4 + DeepDream](outputs/animations/stage4-dream.mp4). All four play in sync in [stages-2x2.mp4](outputs/animations/stages-2x2.mp4) ([stills](outputs/animations/wip/17-stage4-dream.png)).
+- **DeepDream result:** the bone ribbons turned into coral snakes, black dogs appear in the bottom-left, and eyes and machinery fill the void. Because frame-to-frame feedback locks hallucinations in place, the snakes ride the ribbons for the whole loop. The homunculus mostly gets dreamed away into a ghost. Next tweak: lower `--feedback`/`--step`, or a higher `--char-protect`.
+
 Add `--no-dream` for a ~25s raw preview: [0.6 raw](outputs/animations/reel-raw.mp4) ([frames](outputs/animations/wip/12-reel-raw.png)), [0.75 raw](outputs/animations/reel75-raw.mp4) ([frames](outputs/animations/wip/13-reel75-raw.png)). The DeepDreamed versions take ~15 min each.
 
 ## Next up

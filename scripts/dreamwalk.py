@@ -169,7 +169,7 @@ class BackdropScene:
     """A generated background with the vortex lattice animated into its void, and a hand-traced
     path the character walks from the distance into the foreground."""
 
-    def __init__(self, W, H, frames, background, path, protect=(), size=1.5, strength=0.8, explode=0.15):
+    def __init__(self, W, H, frames, background, path, protect=(), size=1.5, strength=0.8, explode=0.15, water=None):
         import patterns
         self.W, self.H, self.T = W, H, frames
         bg = cv2.imread(str(background))[..., ::-1].astype(np.float32) / 255
@@ -183,10 +183,15 @@ class BackdropScene:
         seg = np.hypot(*np.diff(pts[:, :2], axis=0).T) / ((pts[1:, 2] + pts[:-1, 2]) / 2)
         self.ground = np.r_[0, np.cumsum(seg)] / seg.sum()
         self.pts, self.size, self.explode = pts, size, explode
+        self.water = Water(self.bg, water) if water is not None else None
 
     def render(self, f):
         v = self.vortex.frame(f / self.T)
-        return self.bg * (1 - self.mask) + np.maximum(self.bg, v * self.strength) * self.mask
+        img = self.bg * (1 - self.mask) + np.maximum(self.bg, v * self.strength) * self.mask
+        if self.water:
+            img = self.water.apply(img, v * self.mask, f / self.T)
+        return img
+
 
     def pose(self, f, n_steps):
         ph = f / self.T
@@ -201,6 +206,78 @@ class BackdropScene:
         wobble = 0.35 * (0.5 - 0.5 * math.cos(2 * np.pi * 3 * ph)) ** 2
         return dict(foot=np.array([x, y - bob]), ground=(x, y), sh=sh, angle=0.0,
                     env=wobble + 2.5 * burst, fade=1 - burst)
+
+
+class Water:
+    """Everything below the horizon that isn't bright bone is water: it reflects the swirling void
+    and gets looping perspective waves, expanding ring ripples, and glints on the crests."""
+
+    def __init__(self, bg, horizon, n_rings=7, seed=5):
+        H, W = bg.shape[:2]
+        self.H, self.W, self.yh = H, W, horizon * H
+        hsv = cv2.cvtColor(bg, cv2.COLOR_RGB2HSV)
+        yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+        below = yy > self.yh
+        val, sat = hsv[..., 2], hsv[..., 1]
+        # bone: bright and colorless. Shadowed bone is dimmer, so also take dim colorless pixels that
+        # are connected to bright bone close by (hysteresis); arch reflections further out stay water
+        strong = (below & (val > 0.58)).astype(np.uint8)  # bone + bright coral
+        # close the speckle so coral clumps (light/dark blue flecks) become solid
+        strong = cv2.morphologyEx(strong, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) & below
+        near = cv2.dilate(strong, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (51, 51)))
+        weak = (below & (val > 0.15) & (sat < 0.3)).astype(np.uint8) & near | strong
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(weak)
+        hit = np.zeros(n, bool)
+        hit[np.unique(labels[strong > 0])] = True
+        hit[0] = False
+        bone = hit[labels].astype(np.uint8)
+        # small enclosed pockets (perforation holes, gaps in the ribbon) count as bone too
+        n, labels, stats, _ = cv2.connectedComponentsWithStats((below & (bone == 0)).astype(np.uint8))
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < 0.002 * H * W:
+                bone[labels == i] = 1
+        bone = cv2.dilate(bone, np.ones((5, 5), np.uint8))
+        water = (below & (bone == 0)).astype(np.uint8)
+        water = cv2.morphologyEx(water, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        self.mask = np.clip(cv2.distanceTransform(water, cv2.DIST_L2, 3) / 2.5, 0, 1)[..., None].astype(np.float32)
+        # water source with the bone painted out, so ripples don't drag ribbon pixels into the pool
+        self.src = cv2.inpaint((bg * 255).astype(np.uint8), bone, 6, cv2.INPAINT_TELEA).astype(np.float32) / 255
+        # perspective: depth grows toward the horizon; world X/Z drive the wave phases
+        dyh = np.maximum(yy - self.yh, 1.0)
+        self.Z = H * 0.6 / (dyh + H * 0.04)  # capped so far-off waves don't alias into stripes
+        self.X = (xx - W / 2) / W * self.Z * 2.5
+        self.near = np.clip(dyh / (H * 0.18), 0, 1) ** 2  # calm toward the horizon
+        self.mirror_y = np.clip(2 * self.yh - yy, 0, H - 1)
+        self.fade = np.exp(-dyh / (H * 0.35))[..., None]
+        self.xx, self.yy = xx, yy
+        rng = np.random.default_rng(seed)
+        self.waves = [(rng.uniform(-1.5, 1.5), rng.uniform(2, 5), rng.uniform(0.5, 1), rng.choice([1, 2, 3]), rng.uniform(0, 2 * np.pi))
+                      for _ in range(5)]
+        self.rings = [(rng.uniform(-3, 3), rng.uniform(1.2, 6), rng.random()) for _ in range(n_rings)]
+
+    def height(self, ph):
+        h = np.zeros_like(self.Z)
+        for kx, kz, a, n, p0 in self.waves:
+            h += a * np.sin(kx * self.X + kz * self.Z - 2 * np.pi * n * ph + p0)
+        for x0, z0, off in self.rings:
+            age = (ph + off) % 1.0  # each ring is born, spreads and dies once per loop
+            r = np.hypot(self.X - x0, (self.Z - z0) * 1.0)
+            R = 0.2 + age * 2.2
+            h += 2.0 * np.sin(np.pi * age) * np.sin(9 * (r - R)) * np.exp(-((r - R) / 0.35) ** 2)
+        return cv2.GaussianBlur((h * self.near).astype(np.float32), (0, 0), 1.2)
+
+    def apply(self, img, void_pattern, ph):
+        h = self.height(ph)
+        gy, gx = np.gradient(h)
+        px = np.clip(self.yy - self.yh, 0, None) / self.H  # waves look smaller (in px) far away
+        dx, dy = gx * 40 * px, gy * 60 * px
+        refl = cv2.remap(void_pattern.astype(np.float32), self.xx, self.mirror_y.astype(np.float32), cv2.INTER_LINEAR)
+        dark = np.clip(1 - cv2.cvtColor(self.src, cv2.COLOR_RGB2HSV)[..., 2:3] / 0.5, 0, 1)
+        surface = self.src + 0.7 * refl * self.fade * (0.3 + 0.7 * dark)
+        warped = cv2.remap(surface.astype(np.float32), (self.xx + dx).astype(np.float32),
+                           (self.yy + dy).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        glint = np.clip(-gy * 4, 0, 1)[..., None] ** 2 * np.array([.55, .8, 1.0], np.float32) * 0.45
+        return img * (1 - self.mask) + np.clip(warped + glint, 0, 1) * self.mask
 
 
 # ---------- character placement ----------
@@ -328,8 +405,11 @@ def main():
     p.add_argument("--background", help="image to walk through instead of the procedural scene")
     p.add_argument("--path", help='walk path for --background: "x,y,width ..." in 0..1 coords, far to near')
     p.add_argument("--protect", action="append", default=[], help="polygon kept free of the void pattern (patterns.py fill)")
+    p.add_argument("--water", type=float, help="horizon height (0..1): below it, non-bone pixels become rippling water")
     p.add_argument("--size", type=float, default=1.5, help="character height relative to the walkway width")
     p.add_argument("--no-dream", action="store_true")
+    p.add_argument("--no-character", action="store_true", help="backdrop only (for stage-by-stage renders)")
+    p.add_argument("--no-shatter", action="store_true", help="walk without discombobulating")
     p.add_argument("--layers", default="inception4c:1.0,inception4d:1.0", help="4c-4e is where the dogs live")
     p.add_argument("--octaves", type=int, default=5)
     p.add_argument("--octave-scale", type=float, default=1.4)
@@ -350,7 +430,8 @@ def main():
 
     if a.background:
         protect = [patterns_poly(t) for t in a.protect]
-        scene = BackdropScene(a.width, a.height, a.frames, a.background, patterns_poly(a.path), protect, size=a.size)
+        scene = BackdropScene(a.width, a.height, a.frames, a.background, patterns_poly(a.path), protect,
+                              size=a.size, water=a.water)
     else:
         scene = Scene(a.width, a.height, a.frames)
     n_steps = a.frames // a.hold  # one bob per pose change
@@ -358,8 +439,13 @@ def main():
     def raw_frame(f):
         f %= a.frames
         img = scene.render(f)
+        if a.no_character:
+            return img.astype(np.float32), np.zeros(img.shape[:2], np.float32)
         spr, labels, seeds = sprites[(f // a.hold) % len(sprites)]
-        rgb, alpha = place_character(img, spr, labels, seeds, scene.pose(f, n_steps), f / a.frames)
+        pose = scene.pose(f, n_steps)
+        if a.no_shatter:
+            pose["env"] = 0.0  # stays in one piece; still fades in/out at the ends of the path
+        rgb, alpha = place_character(img, spr, labels, seeds, pose, f / a.frames)
         return rgb.astype(np.float32), alpha
 
     frames_dir = OUT_DIR / f"{a.name}_frames"
