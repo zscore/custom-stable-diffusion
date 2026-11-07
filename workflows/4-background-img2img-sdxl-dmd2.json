@@ -1,0 +1,116 @@
+{
+  "ckpt": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "juggernautXL_v9.safetensors"
+    }
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "painterly digital painting, a winding walkway made entirely of smooth pale bone curving from the far distance into the foreground, the walkway surface is polished ivory bone with vertebrae-like segments and porous oval holes, giant looping bone arches with lattice webbing, everything in cool blue tones, blue-white bone, cobalt, cyan and navy palette, dark blue void, moody blue rim lighting, fantasy concept art",
+      "clip": [
+        "lora",
+        1
+      ]
+    }
+  },
+  "neg": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "asphalt, road markings, lane lines, highway, street, pavement, concrete, green, teal, warm colors, people, creature, text, watermark, lowres, blurry",
+      "clip": [
+        "lora",
+        1
+      ]
+    }
+  },
+  "latent": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "init",
+        0
+      ],
+      "vae": [
+        "ckpt",
+        2
+      ]
+    }
+  },
+  "sample": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "lora",
+        0
+      ],
+      "positive": [
+        "pos",
+        0
+      ],
+      "negative": [
+        "neg",
+        0
+      ],
+      "latent_image": [
+        "latent",
+        0
+      ],
+      "seed": 2292325229,
+      "steps": 6,
+      "cfg": 1.0,
+      "sampler_name": "lcm",
+      "scheduler": "sgm_uniform",
+      "denoise": 0.75
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "sample",
+        0
+      ],
+      "vae": [
+        "ckpt",
+        2
+      ]
+    }
+  },
+  "save": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "decode",
+        0
+      ],
+      "filename_prefix": "gen"
+    }
+  },
+  "lora": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": [
+        "ckpt",
+        0
+      ],
+      "clip": [
+        "ckpt",
+        1
+      ],
+      "lora_name": "dmd2_sdxl_4step_lora_fp16.safetensors",
+      "strength_model": 1.0,
+      "strength_clip": 1.0
+    }
+  },
+  "init": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "20261107-193514-bonehalls-2292325229.png"
+    },
+    "is_changed": [
+      "d429f93ded393b27f39b8081ebb91f4c93c40bc50d93e1bc97da07d36cc84f44"
+    ]
+  }
+}

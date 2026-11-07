@@ -1,0 +1,150 @@
+{
+  "ckpt": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "dreamshaper_8.safetensors"
+    }
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "cute cartoon blue homunculus creature, side view walking, mid stride, very grumpy scowling face, furrowed brow, frowning, annoyed, stomping, clean lineart, flat colors, white background, full body",
+      "clip": [
+        "ckpt",
+        1
+      ]
+    }
+  },
+  "neg": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "photo, realistic, human, multiple characters, teeth, smiling, happy, lowres, blurry, watermark, text, deformed, extra limbs",
+      "clip": [
+        "ckpt",
+        1
+      ]
+    }
+  },
+  "latent": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    }
+  },
+  "sample": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "ipa",
+        0
+      ],
+      "positive": [
+        "pos",
+        0
+      ],
+      "negative": [
+        "neg",
+        0
+      ],
+      "latent_image": [
+        "latent",
+        0
+      ],
+      "seed": 2284780482,
+      "steps": 25,
+      "cfg": 7.0,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1.0
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "sample",
+        0
+      ],
+      "vae": [
+        "ckpt",
+        2
+      ]
+    }
+  },
+  "save": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "decode",
+        0
+      ],
+      "filename_prefix": "gen"
+    }
+  },
+  "ref0": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "homunculus-crouch.png"
+    },
+    "is_changed": [
+      "301ed99a3ad19b5316bead4833e47376d231b4d8c6741db794b80c7079e37469"
+    ]
+  },
+  "ref1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "homunculus-armscrossed.png"
+    },
+    "is_changed": [
+      "aa0c412bd9761716bda2c8451c0d05cdc20a4a77920a9105031cf62564b87169"
+    ]
+  },
+  "ref_batch1": {
+    "class_type": "ImageBatch",
+    "inputs": {
+      "image1": [
+        "ref0",
+        0
+      ],
+      "image2": [
+        "ref1",
+        0
+      ]
+    }
+  },
+  "ipa_loader": {
+    "class_type": "IPAdapterUnifiedLoader",
+    "inputs": {
+      "model": [
+        "ckpt",
+        0
+      ],
+      "preset": "PLUS (high strength)"
+    }
+  },
+  "ipa": {
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "model": [
+        "ipa_loader",
+        0
+      ],
+      "ipadapter": [
+        "ipa_loader",
+        1
+      ],
+      "image": [
+        "ref_batch1",
+        0
+      ],
+      "weight": 0.7,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0.0,
+      "end_at": 1.0,
+      "embeds_scaling": "V only"
+    }
+  }
+}

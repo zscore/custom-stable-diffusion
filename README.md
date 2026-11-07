@@ -45,6 +45,8 @@ $PY scripts/dreamwalk.py outputs/*grumpy-walk-*.png --hold 5     # DeepDreamed w
 
 Every image lands in `outputs/` next to a `.json` with its full recipe (prompt, negative, seed, sampler, model…), so anything can be reproduced or riffed on.
 
+📖 **[docs/PIPELINE.md](docs/PIPELINE.md)** walks through the whole process: the four ComfyUI graphs ([`workflows/`](workflows/)) and every post-processing step behind the procession loop.
+
 ## What's in here
 
 | Path | What |
@@ -53,8 +55,11 @@ Every image lands in `outputs/` next to a `.json` with its full recipe (prompt, 
 | `start.sh` | Launches the ComfyUI server |
 | `scripts/gen.py` | Text-to-image and img2img (`--init`): builds a ComfyUI graph, queues it, saves PNG + JSON. Stdlib only |
 | `scripts/contact.py` | Makes contact sheets for reviewing batches |
+| `scripts/export_workflow.py` | Pulls the ComfyUI graph embedded in an output PNG out as a JSON workflow |
 | `scripts/patterns.py` | Blue procedural backgrounds; animated vortex-lattice loop; fills a background's void with it |
 | `scripts/dreamwalk.py` | Cuts the homunculus out of renders, walks him through a scene, shatters him, DeepDreams every frame |
+| `workflows/` | The ComfyUI graphs behind the final assets (drag onto the canvas to load) |
+| `docs/PIPELINE.md` | **How the procession loop was made**, from ComfyUI graphs to post-processing |
 | `refs/` | IPAdapter reference images of the homunculus |
 | `outputs/` | Everything generated so far, with recipes |
 | `outputs/animations/` | Rendered loops (mp4/gif) and `wip/` sheets from the animation experiments. Frame dumps are gitignored |
