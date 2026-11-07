@@ -1,0 +1,6 @@
+# ComfyUI install, venv, and models (~13GB) — rebuilt by setup.sh
+ComfyUI/
+
+*.log
+.DS_Store
+__pycache__/

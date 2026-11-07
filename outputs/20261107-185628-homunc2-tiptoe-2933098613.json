@@ -1,0 +1,13 @@
+{
+  "prompt": "cute cartoon creature, small blue skinned homunculus gremlin, bald round head, big pointy ears, huge round frightened eyes, worried eyebrows, tiny clawed hands, thin tail, tiptoeing nervously through a dark wizard's library, looking over his shoulder, candlelight, pixar style 3d render, full body",
+  "negative": "photo, realistic, human, boy, girl, child, person, multiple characters, teeth, menacing, lowres, blurry, watermark, text, deformed, extra limbs",
+  "width": 512,
+  "height": 512,
+  "steps": 25,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "ckpt": "dreamshaper_8.safetensors",
+  "fast": false,
+  "seed": 2933098613
+}

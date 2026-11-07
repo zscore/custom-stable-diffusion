@@ -1,0 +1,13 @@
+{
+  "prompt": "a red fox sitting in fresh snow at golden hour, soft rim light, shallow depth of field, wildlife photography",
+  "negative": "lowres, blurry, jpeg artifacts, watermark, text, signature, deformed, bad anatomy, extra fingers",
+  "width": 1024,
+  "height": 1024,
+  "steps": 6,
+  "cfg": 1.0,
+  "sampler": "lcm",
+  "scheduler": "sgm_uniform",
+  "ckpt": "juggernautXL_v9.safetensors",
+  "fast": true,
+  "seed": 1234
+}

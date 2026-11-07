@@ -1,0 +1,13 @@
+{
+  "prompt": "a cozy cabin in a pine forest at night, warm light in windows, falling snow, cinematic",
+  "negative": "lowres, blurry, jpeg artifacts, watermark, text, signature, deformed, bad anatomy, extra fingers",
+  "width": 1024,
+  "height": 1024,
+  "steps": 6,
+  "cfg": 1.0,
+  "sampler": "lcm",
+  "scheduler": "sgm_uniform",
+  "ckpt": "juggernautXL_v9.safetensors",
+  "fast": true,
+  "seed": 3552489806
+}

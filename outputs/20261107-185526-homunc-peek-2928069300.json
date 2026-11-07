@@ -1,0 +1,13 @@
+{
+  "prompt": "small nervous blue goblin homunculus peeking out from behind a stack of old books, giant frightened eyes, floppy ears, tiny hands gripping the book edge, cartoon, fantasy, candlelight, cute, detailed",
+  "negative": "photo, realistic, human, multiple characters, lowres, blurry, watermark, text, deformed, extra limbs",
+  "width": 512,
+  "height": 512,
+  "steps": 25,
+  "cfg": 7.0,
+  "sampler": "dpmpp_2m",
+  "scheduler": "karras",
+  "ckpt": "dreamshaper_8.safetensors",
+  "fast": false,
+  "seed": 2928069300
+}
